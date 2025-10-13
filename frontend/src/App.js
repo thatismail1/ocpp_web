@@ -8,6 +8,7 @@ import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Toaster } from './components/ui/sonner';
 import './App.css';
 
 function ProtectedRoute({ children }) {
