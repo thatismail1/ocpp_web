@@ -1,0 +1,10 @@
+{
+  "1234567890": {
+    "id_tag": "RFID001",
+    "start_meter": 85.5,
+    "start_time": "2025-01-15T10:30:00Z",
+    "last_meter": 88.2,
+    "full_name": "John Doe",
+    "charger_id": "LIVOLTEK_01"
+  }
+}

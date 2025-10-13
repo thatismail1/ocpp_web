@@ -1,0 +1,182 @@
+[
+  {
+    "ID": "log_000",
+    "timestamp": "2025-10-13T10:23:36.462672+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 7200,
+    "deliveredEnergy": 85.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_001",
+    "timestamp": "2025-10-13T10:08:36.462681+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 7300,
+    "deliveredEnergy": 88.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_002",
+    "timestamp": "2025-10-13T09:53:36.462686+00:00",
+    "userName": "Bob Wilson",
+    "chargerName": "LIVOLTEK_02",
+    "totalPower": 7400,
+    "deliveredEnergy": 90.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_003",
+    "timestamp": "2025-10-13T09:38:36.462689+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 7500,
+    "deliveredEnergy": 93.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_004",
+    "timestamp": "2025-10-13T09:23:36.462692+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 7600,
+    "deliveredEnergy": 95.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_005",
+    "timestamp": "2025-10-13T09:08:36.462695+00:00",
+    "userName": "Bob Wilson",
+    "chargerName": "LIVOLTEK_02",
+    "totalPower": 7700,
+    "deliveredEnergy": 98.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_006",
+    "timestamp": "2025-10-13T08:53:36.462697+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 7800,
+    "deliveredEnergy": 100.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_007",
+    "timestamp": "2025-10-13T08:38:36.462702+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 7900,
+    "deliveredEnergy": 103.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_008",
+    "timestamp": "2025-10-13T08:23:36.462705+00:00",
+    "userName": "Bob Wilson",
+    "chargerName": "LIVOLTEK_02",
+    "totalPower": 8000,
+    "deliveredEnergy": 105.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_009",
+    "timestamp": "2025-10-13T08:08:36.462710+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 8100,
+    "deliveredEnergy": 108.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_010",
+    "timestamp": "2025-10-13T07:53:36.462713+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 8200,
+    "deliveredEnergy": 110.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_011",
+    "timestamp": "2025-10-13T07:38:36.462715+00:00",
+    "userName": "Bob Wilson",
+    "chargerName": "LIVOLTEK_02",
+    "totalPower": 8300,
+    "deliveredEnergy": 113.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_012",
+    "timestamp": "2025-10-13T07:23:36.462718+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 8400,
+    "deliveredEnergy": 115.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_013",
+    "timestamp": "2025-10-13T07:08:36.462721+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 8500,
+    "deliveredEnergy": 118.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_014",
+    "timestamp": "2025-10-13T06:53:36.462723+00:00",
+    "userName": "Bob Wilson",
+    "chargerName": "LIVOLTEK_02",
+    "totalPower": 8600,
+    "deliveredEnergy": 120.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_015",
+    "timestamp": "2025-10-13T06:38:36.462725+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 8700,
+    "deliveredEnergy": 123.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_016",
+    "timestamp": "2025-10-13T06:23:36.462728+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 8800,
+    "deliveredEnergy": 125.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_017",
+    "timestamp": "2025-10-13T06:08:36.462730+00:00",
+    "userName": "Bob Wilson",
+    "chargerName": "LIVOLTEK_02",
+    "totalPower": 8900,
+    "deliveredEnergy": 128.0,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_018",
+    "timestamp": "2025-10-13T05:53:36.462735+00:00",
+    "userName": "John Doe",
+    "chargerName": "LIVOLTEK_01",
+    "totalPower": 9000,
+    "deliveredEnergy": 130.5,
+    "frequency": 50.0
+  },
+  {
+    "ID": "log_019",
+    "timestamp": "2025-10-13T05:38:36.462738+00:00",
+    "userName": "Jane Smith",
+    "chargerName": "SCHNEIDER_01",
+    "totalPower": 9100,
+    "deliveredEnergy": 133.0,
+    "frequency": 50.0
+  }
+]

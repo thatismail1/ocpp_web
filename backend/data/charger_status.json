@@ -1,0 +1,29 @@
+{
+  "LIVOLTEK_01": {
+    "name": "LIVOLTEK_01",
+    "brand": "LIVOLTEK",
+    "status": "Charging",
+    "last_heartbeat": "2025-10-13T10:23:36.462422+00:00",
+    "total_energy_delivered": 1523.5,
+    "uptime_hours": 720,
+    "connector_id": 1
+  },
+  "SCHNEIDER_01": {
+    "name": "SCHNEIDER_01",
+    "brand": "SCHNEIDER",
+    "status": "Available",
+    "last_heartbeat": "2025-10-13T10:23:36.462438+00:00",
+    "total_energy_delivered": 2145.8,
+    "uptime_hours": 680,
+    "connector_id": 1
+  },
+  "LIVOLTEK_02": {
+    "name": "LIVOLTEK_02",
+    "brand": "LIVOLTEK",
+    "status": "Available",
+    "last_heartbeat": "2025-10-13T10:23:36.462440+00:00",
+    "total_energy_delivered": 989.2,
+    "uptime_hours": 710,
+    "connector_id": 1
+  }
+}
