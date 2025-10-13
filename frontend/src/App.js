@@ -58,6 +58,7 @@ function App() {
             </ProtectedRoute>
           } />
         </Routes>
+        <Toaster />
       </Router>
     </AuthProvider>
   );
