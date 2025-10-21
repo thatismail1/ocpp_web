@@ -144,7 +144,7 @@ Password: admin123
 ## 🚦 Running the Application
 
 The application is already running and accessible at:
-https://smart-chargers.preview.emergentagent.com
+https://ev-meter-connect.preview.emergentagent.com
 
 ### Services Status
 ```bash
