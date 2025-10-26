@@ -1,15 +1,14 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api'; // ✅ use your axios instance with interceptors
 
 const AuthContext = createContext(null);
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
+  // ✅ Check authentication on load
   useEffect(() => {
     checkAuth();
   }, []);
@@ -18,9 +17,7 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        const response = await axios.get(`${API_URL}/api/auth/verify`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await api.get('/api/auth/verify');
         setIsAuthenticated(true);
         setUser(response.data.username);
       } catch (error) {
@@ -31,22 +28,28 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
+  // ✅ Login user and store token
   const login = async (username, password) => {
     try {
-      const response = await axios.post(`${API_URL}/api/auth/login`, {
-        username,
-        password
-      });
+      const response = await api.post('/api/login', { username, password });
       const { access_token } = response.data;
-      localStorage.setItem('token', access_token);
-      setIsAuthenticated(true);
-      setUser(username);
+
+      if (access_token) {
+        localStorage.setItem('token', access_token);
+        setIsAuthenticated(true);
+        setUser(username);
+      }
+
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.detail || 'Login failed' };
+      return {
+        success: false,
+        error: error.response?.data?.detail || 'Login failed',
+      };
     }
   };
 
+  // ✅ Logout clears token
   const logout = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
@@ -54,12 +57,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, loading, user, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        loading,
+        user,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
+// Hook to use in components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
