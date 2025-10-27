@@ -1,29 +1,32 @@
 {
-  "LIVOLTEK_01": {
-    "name": "LIVOLTEK_01",
-    "brand": "LIVOLTEK",
-    "status": "Charging",
-    "last_heartbeat": "2025-10-13T10:23:36.462422+00:00",
-    "total_energy_delivered": 1523.5,
-    "uptime_hours": 720,
-    "connector_id": 1
-  },
-  "SCHNEIDER_01": {
-    "name": "SCHNEIDER_01",
+  "SCHNEIDER/EVlinkProAC": {
+    "name": "SCHNEIDER/EVlinkProAC",
     "brand": "SCHNEIDER",
-    "status": "Available",
-    "last_heartbeat": "2025-10-13T10:23:36.462438+00:00",
-    "total_energy_delivered": 2145.8,
-    "uptime_hours": 680,
+    "model": "Unknown",
+    "status": "SuspendedEV",
+    "last_heartbeat": "2025-10-27T11:09:56.791465+00:00",
+    "total_energy_delivered": 0,
+    "uptime_hours": 0,
     "connector_id": 1
   },
-  "LIVOLTEK_02": {
-    "name": "LIVOLTEK_02",
-    "brand": "LIVOLTEK",
+  "BEDAS01": {
+    "name": "BEDAS01",
+    "brand": "Unknown",
+    "model": "Unknown",
     "status": "Available",
-    "last_heartbeat": "2025-10-13T10:23:36.462440+00:00",
-    "total_energy_delivered": 989.2,
-    "uptime_hours": 710,
+    "last_heartbeat": "2025-10-27T11:09:51.855360+00:00",
+    "total_energy_delivered": 0,
+    "uptime_hours": 0,
+    "connector_id": 1
+  },
+  "LIVOLTEK": {
+    "name": "LIVOLTEK",
+    "brand": "LIVOLTEK",
+    "model": "LIVOLTEK",
+    "status": "Charging",
+    "last_heartbeat": "2025-10-27T11:09:58.838701+00:00",
+    "total_energy_delivered": 0,
+    "uptime_hours": 0,
     "connector_id": 1
   }
 }

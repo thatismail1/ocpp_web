@@ -18,6 +18,9 @@ const Dashboard = () => {
         api.get('/api/usage/history'),
         api.get('/api/transactions')
       ]);
+
+    // ✅ Add this line:
+      console.log("📊 usageHistory from backend:", historyRes.data);      
       
       setStats(statsRes.data);
       setUsageHistory(historyRes.data.history);
@@ -102,27 +105,47 @@ const Dashboard = () => {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
         {/* Energy Usage Chart */}
-        <Card className="p-6 border-slate-200 dark:border-slate-800">
+        <Card className="p-6 border-slate-200 dark:border-slate-800 min-h-[400px]">
           <div className="flex items-center space-x-2 mb-6">
             <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Energy Usage Trend</h3>
           </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={usageHistory}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="date" stroke="#64748b" style={{ fontSize: '12px' }} />
-              <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                }}
-              />
-              <Line type="monotone" dataKey="energy" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} />
-            </LineChart>
-          </ResponsiveContainer>
+
+          {/* ✅ Your new chart block */}
+          <div
+            style={{
+              width: '100%',
+              height: '350px',          // hard pixel height
+              minWidth: '100px',
+            }}
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={usageHistory}
+                margin={{ top: 10, right: 30, left: 0, bottom: 10 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="date" stroke="#64748b" tick={{ fill: '#64748b' }} />
+                <YAxis
+                  stroke="#64748b"
+                  tick={{ fill: '#64748b' }}
+                  domain={[0, 'dataMax + 10']}
+                />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="energy"
+                  stroke="#22d3ee"
+                  strokeWidth={3}
+                  dot={{ fill: '#22d3ee' }}
+                  isAnimationActive
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
         </Card>
 
         {/* Total Energy Delivered */}

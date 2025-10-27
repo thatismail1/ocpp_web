@@ -20,9 +20,17 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 
-# Data directory path
-DATA_DIR = Path("/app/backend/data")
 
+
+# ✅ always use backend/data no matter where the file is executed
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+print(f"🧭 OCPP DATA_DIR = {DATA_DIR}")
+
+USERS_CSV = DATA_DIR / "users1.csv"
+ENERGY_USAGE_JSON = DATA_DIR / "energy_usage.json"
+ACTIVE_TRANSACTIONS_JSON = DATA_DIR / "active_transactions.json"
+LAST_RESET_FILE = DATA_DIR / "last_reset.txt"
 
 class QuotaManager:
     def __init__(self, csv_path=None, usage_file=None, tx_file=None):
@@ -376,11 +384,28 @@ class ChargePoint(cp):
     @on(Action.Heartbeat)
     async def on_heartbeat(self):
         """Handle Heartbeat from Charge Point."""
-        logging.info(f'Received heartbeat from {self.id}')
-        
-        # Update charger status - heartbeat indicates charger is online
-        self.charger_status_manager.update_charger_heartbeat(self.id)
-        
+        logging.info(f'[HEARTBEAT] Received heartbeat from {self.id}')
+
+        # Load latest charger status directly from file
+        try:
+            with open(self.charger_status_manager.status_file, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                all_chargers = json.loads(content) if content else {}
+        except Exception as e:
+            logging.error(f"[HEARTBEAT] Could not read charger_status.json: {e}")
+            all_chargers = {}
+
+        current_status = all_chargers.get(self.id, {}).get("status", "Unknown")
+
+        # ✅ Only update to Available if not already Charging/Suspended
+        if current_status not in ["Charging", "SuspendedEV", "SuspendedEVSE"]:
+            self.charger_status_manager.update_charger_status(self.id, "Available")
+            logging.info(f"[HEARTBEAT] {self.id} status refreshed to Available.")
+        else:
+            # Just update heartbeat timestamp without changing state
+            self.charger_status_manager.update_charger_heartbeat(self.id)
+            logging.info(f"[HEARTBEAT] {self.id} is {current_status}, keeping same status.")
+
         return call_result.HeartbeatPayload(
             current_time=datetime.now(timezone.utc).isoformat()
         )
@@ -422,6 +447,9 @@ class ChargePoint(cp):
             # Check active transactions for quota violations
             if current_energy_kwh is not None:
                 transactions_to_stop = []
+                self.charger_status_manager.update_uptime(self.id)
+                self.charger_status_manager.add_delivered_energy(self.id, current_energy_kwh)
+
 
                 # If we have a specific transaction ID, check only that one
                 if transaction_id and transaction_id in self.quota_manager.active_transactions:
@@ -598,36 +626,81 @@ class ChargePoint(cp):
 
 class ChargerStatusManager:
     """Manages charger_status.json file for dashboard integration."""
-    
+
     def __init__(self):
         self.status_file = DATA_DIR / "charger_status.json"
         self.meter_log_file = DATA_DIR / "meter_data_log.json"
         self.chargers = {}
         self.load_charger_status()
-    
+        
+        # ✅ Initialize empty file if it doesn't exist
+        if not self.status_file.exists():
+            logging.info(f"[STATUS] Creating new charger_status.json at {self.status_file}")
+            self.save_charger_status()
+
     def load_charger_status(self):
         """Load existing charger status."""
         try:
             if os.path.exists(self.status_file):
-                with open(self.status_file, 'r') as f:
-                    self.chargers = json.load(f)
+                with open(self.status_file, 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if content:  # ✅ Check if file has content
+                        self.chargers = json.loads(content)
+                    else:
+                        logging.warning("[STATUS] charger_status.json is empty, initializing")
+                        self.chargers = {}
             else:
+                logging.info("[STATUS] charger_status.json does not exist, will create")
                 self.chargers = {}
-            logging.info(f"Loaded {len(self.chargers)} chargers from status file")
-        except Exception as e:
-            logging.error(f"Error loading charger status: {e}")
+            logging.info(f"[STATUS] Loaded {len(self.chargers)} chargers from status file")
+        except json.JSONDecodeError as e:
+            logging.error(f"[STATUS] JSON decode error in charger status: {e}, resetting to empty")
             self.chargers = {}
-    
-    def save_charger_status(self):
-        """Save charger status to file."""
-        try:
-            with open(self.status_file, 'w') as f:
-                json.dump(self.chargers, f, indent=2)
         except Exception as e:
-            logging.error(f"Error saving charger status: {e}")
-    
+            logging.error(f"[STATUS] Error loading charger status: {e}")
+            self.chargers = {}
+
+    def save_charger_status(self):
+        """Save charger status to file with proper error handling and verification."""
+        try:
+            # Ensure directory exists
+            self.status_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write to temporary file first for atomic write
+            tmp_path = self.status_file.with_suffix(".tmp")
+            
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(self.chargers, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
+            
+            # Atomic replace (works on Windows and Unix)
+            if os.path.exists(self.status_file):
+                os.remove(self.status_file)
+            os.rename(tmp_path, self.status_file)
+            
+            # ✅ Verify the write was successful
+            with open(self.status_file, 'r', encoding='utf-8') as f:
+                verify = json.load(f)
+                if len(verify) != len(self.chargers):
+                    raise Exception("Verification failed: charger count mismatch")
+            
+            logging.info(f"[STATUS] ✅ Saved {len(self.chargers)} chargers to {self.status_file}")
+            
+        except Exception as e:
+            logging.error(f"[STATUS] ❌ Error saving charger status: {e}")
+            # Try to restore from temp if it exists
+            if tmp_path.exists():
+                logging.info("[STATUS] Attempting to restore from temp file")
+                try:
+                    os.rename(tmp_path, self.status_file)
+                except:
+                    pass
+
     def update_charger_boot(self, charger_id, brand, model):
         """Update charger info on boot notification."""
+        logging.info(f"[STATUS] Updating boot info for {charger_id}: {brand} {model}")
+        
         if charger_id not in self.chargers:
             self.chargers[charger_id] = {
                 "name": charger_id,
@@ -639,26 +712,54 @@ class ChargerStatusManager:
                 "uptime_hours": 0,
                 "connector_id": 1
             }
+            logging.info(f"[STATUS] Created new charger entry for {charger_id}")
         else:
             self.chargers[charger_id]["brand"] = brand
             self.chargers[charger_id]["model"] = model
             self.chargers[charger_id]["last_heartbeat"] = datetime.now(timezone.utc).isoformat()
-        
+            logging.info(f"[STATUS] Updated existing charger {charger_id}")
+
         self.save_charger_status()
-        logging.info(f"[STATUS] Updated boot info for charger {charger_id}")
-    
+
     def update_charger_heartbeat(self, charger_id):
-        """Update last heartbeat time."""
-        if charger_id in self.chargers:
-            self.chargers[charger_id]["last_heartbeat"] = datetime.now(timezone.utc).isoformat()
-            self.save_charger_status()
-    
+        """Update last heartbeat time without changing Charging state."""
+        now = datetime.now(timezone.utc).isoformat()
+
+        if charger_id not in self.chargers:
+            # new charger, initialize as Available
+            logging.warning(f"[STATUS] Heartbeat for unknown charger {charger_id}, initializing new entry")
+            self.update_charger_status(charger_id, "Available")
+            return
+
+        # update only timestamp
+        current_status = self.chargers[charger_id].get("status", "Unknown")
+
+        # ✅ do NOT downgrade Charging or Suspended
+        if current_status in ["Charging", "SuspendedEV", "SuspendedEVSE"]:
+            logging.info(f"[HEARTBEAT] {charger_id} is {current_status}, keeping same status.")
+        else:
+            logging.info(f"[HEARTBEAT] {charger_id} was {current_status}, confirming availability.")
+
+        self.chargers[charger_id]["last_heartbeat"] = now
+        self.save_charger_status()
+
     def update_charger_status(self, charger_id, status, connector_id=None):
         """Update charger status (Charging, Available, etc)."""
+        logging.info(f"[STATUS] Updating {charger_id} to {status}")
+        
         if charger_id not in self.chargers:
+            # Detect brand from charger_id
+            charger_upper = charger_id.upper()
+            if "SCHNEIDER" in charger_upper or "EVLINK" in charger_upper:
+                brand = "SCHNEIDER"
+            elif "LIVOLTEK" in charger_upper:
+                brand = "LIVOLTEK"
+            else:
+                brand = "Unknown"
+            
             self.chargers[charger_id] = {
                 "name": charger_id,
-                "brand": "Unknown",
+                "brand": brand,
                 "model": "Unknown",
                 "status": status,
                 "last_heartbeat": datetime.now(timezone.utc).isoformat(),
@@ -666,39 +767,87 @@ class ChargerStatusManager:
                 "uptime_hours": 0,
                 "connector_id": connector_id or 1
             }
+            logging.info(f"[STATUS] Created new entry for {charger_id}")
         else:
             self.chargers[charger_id]["status"] = status
             self.chargers[charger_id]["last_heartbeat"] = datetime.now(timezone.utc).isoformat()
             if connector_id is not None:
                 self.chargers[charger_id]["connector_id"] = connector_id
-        
+
         self.save_charger_status()
-        logging.info(f"[STATUS] Updated status for charger {charger_id}: {status}")
-    
+        logging.info(f"[STATUS] ✅ Status updated for {charger_id}: {status}")
+
     def append_meter_log(self, meter_data):
         """Append meter reading to meter_data_log.json."""
         try:
             # Load existing logs
             logs = []
             if os.path.exists(self.meter_log_file):
-                with open(self.meter_log_file, 'r') as f:
-                    logs = json.load(f)
-            
+                try:
+                    with open(self.meter_log_file, 'r', encoding='utf-8') as f:
+                        content = f.read().strip()
+                        if content:
+                            logs = json.loads(content)
+                except json.JSONDecodeError:
+                    logging.warning("[METER_LOG] Corrupted log file, starting fresh")
+                    logs = []
+
             # Append new log
             logs.append(meter_data)
-            
-            # Keep only last 500 entries to prevent file from growing too large
+
+            # Keep only last 500 entries
             if len(logs) > 500:
                 logs = logs[-500:]
-            
-            # Save back
-            with open(self.meter_log_file, 'w') as f:
-                json.dump(logs, f, indent=2)
-            
-            logging.info(f"[METER_LOG] Appended meter reading to log file")
-        except Exception as e:
-            logging.error(f"[METER_LOG] Error appending to meter log: {e}")
 
+            # Save with atomic write
+            tmp_path = self.meter_log_file.with_suffix(".tmp")
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(logs, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            if os.path.exists(self.meter_log_file):
+                os.remove(self.meter_log_file)
+            os.rename(tmp_path, self.meter_log_file)
+
+            logging.info(f"[METER_LOG] Appended reading (total: {len(logs)})")
+        except Exception as e:
+            logging.error(f"[METER_LOG] Error appending: {e}")
+
+    def update_uptime(self, charger_id):
+        """Update uptime in hours since first seen."""
+        if charger_id not in self.chargers:
+            return
+        boot_time_str = self.chargers[charger_id].get("boot_time")
+        if not boot_time_str:
+            # Save initial boot time if missing
+            self.chargers[charger_id]["boot_time"] = datetime.now(timezone.utc).isoformat()
+            self.chargers[charger_id]["uptime_hours"] = 0
+        else:
+            boot_time = datetime.fromisoformat(boot_time_str)
+            uptime = (datetime.now(timezone.utc) - boot_time).total_seconds() / 3600
+            self.chargers[charger_id]["uptime_hours"] = round(uptime, 2)
+        self.save_charger_status()  
+
+    def add_delivered_energy(self, charger_id, delivered_energy_kwh):
+        """Increment total energy delivered for a charger."""
+        if charger_id not in self.chargers:
+            # If charger not yet tracked, initialize it
+            self.chargers[charger_id] = {
+                "name": charger_id,
+                "brand": "Unknown",
+                "model": "Unknown",
+                "status": "Available",
+                "last_heartbeat": datetime.now(timezone.utc).isoformat(),
+                "total_energy_delivered": 0,
+                "uptime_hours": 0,
+                "connector_id": 1
+            }
+        prev = self.chargers[charger_id].get("total_energy_delivered", 0)
+        self.chargers[charger_id]["total_energy_delivered"] = round(prev + delivered_energy_kwh, 3)
+        self.save_charger_status()
+        logging.info(f"[STATUS] Updated total_energy_delivered for {charger_id}: +{delivered_energy_kwh:.3f} kWh")
+    
 
 class CentralSystem:
     def __init__(self, port=9000, api_url=None, api_key=None, csv_path=None):
@@ -727,55 +876,65 @@ class CentralSystem:
 
     async def on_connect(self, websocket, path):
         """Handle incoming WebSocket connections."""
-        try:
-            charge_point_id = path.strip("/")
+        charge_point_id = path.strip("/")
 
+        try:
             cp = ChargePoint(
-                charge_point_id, 
-                websocket, 
-                self.meter_formatter, 
-                self.api_sender, 
+                charge_point_id,
+                websocket,
+                self.meter_formatter,
+                self.api_sender,
                 self.quota_manager,
                 self.charger_status_manager
             )
             self.chargers[charge_point_id] = cp
 
-            # Add connection metrics
+            # ✅ Fallback: immediately register charger in charger_status.json
+            try:
+                detected_brand = "SCHNEIDER" if "SCHNEIDER" in charge_point_id.upper() else (
+                    "LIVOLTEK" if "LIVOLTEK" in charge_point_id.upper() else "Unknown"
+                )
+                self.charger_status_manager.update_charger_status(
+                    charger_id=charge_point_id,
+                    status="Available",
+                    connector_id=1
+                )
+                # Also fill in brand/model info if missing
+                if charge_point_id not in self.charger_status_manager.chargers:
+                    self.charger_status_manager.chargers[charge_point_id] = {
+                        "name": charge_point_id,
+                        "brand": detected_brand,
+                        "model": "Unknown",
+                        "status": "Available",
+                        "last_heartbeat": datetime.now(timezone.utc).isoformat(),
+                        "total_energy_delivered": 0,
+                        "uptime_hours": 0,
+                        "connector_id": 1
+                    }
+                    self.charger_status_manager.save_charger_status()
+
+                logging.info(f"[CONNECT] Added {charge_point_id} ({detected_brand}) to charger_status.json")
+            except Exception as e:
+                logging.error(f"[CONNECT] Could not update charger_status.json: {e}")
+
+            # ✅ Add connection metrics
             self.api_sender.metrics.connection_start_time = datetime.now(timezone.utc)
             self.api_sender.metrics.last_connection_time = datetime.now(timezone.utc)
 
-            logging.info(f'[CONNECT] Charger {charge_point_id} connected')
+            logging.info(f"[CONNECT] Charger {charge_point_id} connected")
 
+            # ⚙️ Start listening for messages — blocking until disconnect
             await cp.start()
 
-            # Wait for charger to finish BootNotification and be ready
-            await asyncio.sleep(2)
-
-            # Request ALL configuration keys
-            request = call.GetConfigurationPayload()
-
-            try:
-                response = await cp.send_call(request)
-                logging.info(f"[CONFIG] Received ALL configuration keys from {charge_point_id}:")
-                for item in response.configuration_key:
-                    logging.info(f"[CONFIG] {item.key}: {item.value} (ReadOnly={item.readonly})")
-                if response.unknown_key:
-                    logging.warning(f"[CONFIG] Unknown keys (unrecognized by charger): {response.unknown_key}")
-            except Exception as e:
-                logging.error(f"[CONFIG] Failed to get configuration: {str(e)}")
-
         except Exception as e:
-            logging.error(f'Error on connection: {e}')
+            logging.error(f"[CONNECT] Error on connection: {e}")
+
         finally:
+            # ✅ When disconnected, mark as Offline
+            self.charger_status_manager.update_charger_status(charge_point_id, "Offline")
             if charge_point_id in self.chargers:
-                # Add disconnection metrics
-                self.api_sender.metrics.connection_drops += 1
                 del self.chargers[charge_point_id]
-                
-                # Update charger status to Offline
-                self.charger_status_manager.update_charger_status(charge_point_id, "Offline")
-                
-                logging.info(f'[CONNECT] Charger {charge_point_id} disconnected')
+            logging.info(f"[CONNECT] Charger {charge_point_id} disconnected")
 
     async def start(self):
         """Start the OCPP server."""

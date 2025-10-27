@@ -9,6 +9,8 @@ import os
 import json
 import csv
 from pathlib import Path
+from collections import defaultdict
+
 
 app = FastAPI(title="OCPP CMS Dashboard API")
 
@@ -29,16 +31,28 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
 security = HTTPBearer()
 
-# Data file paths
-DATA_DIR = Path("/app/backend/data")
+# Dynamically resolve data folder based on current file location
+# ✅ Always point to the same data folder used by OCPP server
+DATA_DIR = Path(__file__).resolve().parent / "data"
+if not DATA_DIR.exists():
+    fallback = Path(__file__).resolve().parents[1] / "backend" / "data"
+    if fallback.exists():
+        DATA_DIR = fallback
+    else:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+print(f"✅ Unified backend DATA_DIR = {DATA_DIR}")
+
+
+
+# Define your data file paths
 USERS_CSV = DATA_DIR / "users1.csv"
 ENERGY_USAGE_JSON = DATA_DIR / "energy_usage.json"
 ACTIVE_TRANSACTIONS_JSON = DATA_DIR / "active_transactions.json"
 METER_DATA_LOG_JSON = DATA_DIR / "meter_data_log.json"
 CHARGER_STATUS_JSON = DATA_DIR / "charger_status.json"
 
-# Ensure data directory exists
-DATA_DIR.mkdir(exist_ok=True)
+print(f"✅ Data directory: {DATA_DIR}")
 
 # Models
 class LoginRequest(BaseModel):
@@ -190,64 +204,18 @@ def initialize_mock_data():
         })
     
     # Active transactions
+     # Active transactions — start empty
     if not ACTIVE_TRANSACTIONS_JSON.exists():
-        save_json_file(ACTIVE_TRANSACTIONS_JSON, {
-            '1234567890': {
-                'id_tag': 'RFID001',
-                'start_meter': 85.5,
-                'start_time': '2025-01-15T10:30:00Z',
-                'last_meter': 88.2,
-                'full_name': 'John Doe',
-                'charger_id': 'LIVOLTEK_01'
-            }
-        })
-    
+        save_json_file(ACTIVE_TRANSACTIONS_JSON, {})
     # Charger status
+    # Charger status — start empty (no dummy chargers)
     if not CHARGER_STATUS_JSON.exists():
-        save_json_file(CHARGER_STATUS_JSON, {
-            'LIVOLTEK_01': {
-                'name': 'LIVOLTEK_01',
-                'brand': 'LIVOLTEK',
-                'status': 'Charging',
-                'last_heartbeat': datetime.now(timezone.utc).isoformat(),
-                'total_energy_delivered': 1523.5,
-                'uptime_hours': 720,
-                'connector_id': 1
-            },
-            'SCHNEIDER_01': {
-                'name': 'SCHNEIDER_01',
-                'brand': 'SCHNEIDER',
-                'status': 'Available',
-                'last_heartbeat': datetime.now(timezone.utc).isoformat(),
-                'total_energy_delivered': 2145.8,
-                'uptime_hours': 680,
-                'connector_id': 1
-            },
-            'LIVOLTEK_02': {
-                'name': 'LIVOLTEK_02',
-                'brand': 'LIVOLTEK',
-                'status': 'Available',
-                'last_heartbeat': datetime.now(timezone.utc).isoformat(),
-                'total_energy_delivered': 989.2,
-                'uptime_hours': 710,
-                'connector_id': 1
-            }
-        })
+        save_json_file(CHARGER_STATUS_JSON, {})
+    
+    
     
     # Meter data logs
-    if not METER_DATA_LOG_JSON.exists():
-        logs = []
-        for i in range(20):
-            logs.append({
-                'ID': f'log_{i:03d}',
-                'timestamp': (datetime.now(timezone.utc) - timedelta(minutes=i*15)).isoformat(),
-                'userName': ['John Doe', 'Jane Smith', 'Bob Wilson'][i % 3],
-                'chargerName': ['LIVOLTEK_01', 'SCHNEIDER_01', 'LIVOLTEK_02'][i % 3],
-                'totalPower': 7200 + (i * 100),
-                'deliveredEnergy': 85.5 + (i * 2.5),
-                'frequency': 50.0
-            })
-        save_json_file(METER_DATA_LOG_JSON, logs)
+    
 
 # Initialize on startup
 initialize_mock_data()
@@ -277,36 +245,113 @@ async def verify(username: str = Depends(verify_token)):
     return {"username": username, "authenticated": True}
 
 @app.get("/api/stats", response_model=DashboardStats)
-async def get_dashboard_stats(username: str = Depends(verify_token)):
+async def get_dashboard_stats():
+    """
+    Return live dashboard statistics using corrected logic for Schneider & Livoltek chargers.
+
+    - Schneider/EVLINK: cumulative lifetime Wh → convert to kWh & take daily delta (last - first)
+    - Livoltek: already sends incremental kWh → also handled as first–last for consistency
+    """
+    from collections import defaultdict
+
+    # --- Load data files ---
     energy_usage = load_json_file(ENERGY_USAGE_JSON, {})
     active_transactions = load_json_file(ACTIVE_TRANSACTIONS_JSON, {})
     chargers = load_json_file(CHARGER_STATUS_JSON, {})
     users = load_users_csv()
-    
-    # Calculate today's energy (mock - in production would filter by date)
-    total_energy_today = sum(energy_usage.values()) * 0.3  # Mock calculation
-    
-    # Total energy delivered across all chargers
-    total_energy_delivered = sum(c.get('total_energy_delivered', 0) for c in chargers.values())
-    
-    active_chargers = sum(1 for c in chargers.values() if c.get('status') == 'Charging')
-    
+    logs = load_json_file(METER_DATA_LOG_JSON, [])
+
+    today = datetime.now(timezone.utc).date()
+    total_energy_today = 0.0
+    energy_by_charger = defaultdict(list)
+
+    # --- Step 1: Group today's readings per charger ---
+    for rec in logs:
+        try:
+            ts_str = rec.get("timestamp")
+            if not ts_str:
+                continue
+
+            ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            if ts.date() != today:
+                continue  # Only include today's entries
+
+            delivered = float(rec.get("deliveredEnergy", 0))
+            charger_name = str(rec.get("chargerName", "UNKNOWN")).upper()
+
+            # Schneider → cumulative Wh → convert to kWh
+            if "SCHNEIDER" in charger_name or "EVLINK" in charger_name:
+                delivered /= 1000.0  # Wh → kWh
+
+            # Store (timestamp, delivered_kWh)
+            energy_by_charger[charger_name].append((ts, delivered))
+        except Exception as e:
+            print(f"⚠️ Skipping invalid record: {e}")
+
+    # --- Step 2: Compute per-charger daily delta ---
+    for charger, readings in energy_by_charger.items():
+        readings.sort(key=lambda x: x[0])
+        first, last = readings[0][1], readings[-1][1]
+        delta = max(0.0, last - first)  # Prevent negative values
+        total_energy_today += delta
+
+    # --- Step 3: Aggregate dashboard stats ---
+    total_energy_delivered = sum(
+        c.get("total_energy_delivered", 0) for c in chargers.values()
+    )
+    active_chargers = sum(
+        1 for c in chargers.values() if c.get("status") == "Charging"
+    )
+
+    # --- Step 4: Return unified response ---
     return DashboardStats(
-        total_energy_today=round(total_energy_today, 2),
+        total_energy_today=round(total_energy_today, 3),
         active_sessions=len(active_transactions),
         total_users=len(users),
         total_chargers=len(chargers),
         active_chargers=active_chargers,
-        total_energy_delivered=round(total_energy_delivered, 2)
+        total_energy_delivered=round(total_energy_delivered, 3),
     )
 
+
+
+
+
+
+
 @app.get("/api/chargers")
-async def get_chargers(username: str = Depends(verify_token)):
-    chargers = load_json_file(CHARGER_STATUS_JSON, {})
-    return {"chargers": list(chargers.values())}
+async def get_charger_status():
+    try:
+        if CHARGER_STATUS_JSON.exists():
+            with open(CHARGER_STATUS_JSON, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            chargers_list = []
+            for charger_id, charger_data in data.items():
+                charger_data["id"] = charger_id
+                brand = charger_data.get("brand", "Unknown")
+                name_upper = charger_data["name"].upper()
+                if brand == "Unknown":
+                    if "LIVOLTEK" in name_upper:
+                        brand = "LIVOLTEK"
+                    elif "SCHNEIDER" in name_upper or "EVLINK" in name_upper:
+                        brand = "SCHNEIDER"
+                charger_data["brand"] = brand
+                chargers_list.append(charger_data)
+
+            # 👇 Return in a structure your frontend expects
+            return {"chargers": chargers_list}
+        else:
+            print("⚠️ Charger status file missing, returning empty list.")
+            return {"chargers": []}
+    except Exception as e:
+        print(f"Error reading charger_status.json: {e}")
+        return {"chargers": []}
+
 
 @app.get("/api/users", response_model=List[UserQuota])
-async def get_users(username: str = Depends(verify_token)):
+async def get_users():
+
     users = load_users_csv()
     energy_usage = load_json_file(ENERGY_USAGE_JSON, {})
     
@@ -421,16 +466,69 @@ async def get_logs(username: str = Depends(verify_token), charger: Optional[str]
     return {"logs": logs[:limit]}
 
 @app.get("/api/usage/history")
-async def get_usage_history(username: str = Depends(verify_token), days: int = 7):
-    # Mock historical data for charts
+async def get_usage_history(days: int = 7):
+    """
+    Compute daily total energy (in kWh) for all chargers.
+    Works for Schneider (cumulative Wh) and Livoltek (incremental kWh).
+    Always returns at least last 7 days, even if some days have 0.
+    """
+    from collections import defaultdict
+
+    log_path = METER_DATA_LOG_JSON
     history = []
+    energy_by_day = defaultdict(float)
+
+    if not log_path.exists():
+        return {"history": []}
+
+    # Load all records
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+    except Exception as e:
+        print("⚠️ Could not parse meter_data_log.json:", e)
+        return {"history": []}
+
+    per_day_charger = defaultdict(lambda: defaultdict(list))
+
+    for rec in records:
+        try:
+            ts_raw = rec.get("timestamp")
+            if not ts_raw:
+                continue
+
+            ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            day = ts.date().isoformat()
+            charger = str(rec.get("chargerName", "UNKNOWN")).upper()
+            delivered = float(rec.get("deliveredEnergy", 0))
+
+            if "SCHNEIDER" in charger or "EVLINK" in charger:
+                delivered /= 1000.0  # Wh → kWh
+
+            per_day_charger[day][charger].append((ts, delivered))
+        except Exception as e:
+            print("⚠️ Skipping record:", e)
+
+    # Compute daily deltas
+    for day, chargers in per_day_charger.items():
+        total_day = 0.0
+        for charger, readings in chargers.items():
+            readings.sort(key=lambda x: x[0])
+            if len(readings) >= 2:
+                first, last = readings[0][1], readings[-1][1]
+                total_day += max(0.0, last - first)
+        energy_by_day[day] = total_day
+
+    # Fill last 7 days (even if zero)
+    today = datetime.now(timezone.utc).date()
     for i in range(days):
-        date = datetime.now(timezone.utc) - timedelta(days=days-i-1)
-        history.append({
-            'date': date.strftime('%Y-%m-%d'),
-            'energy': round(50 + (i * 15) + (i % 3 * 10), 2)
-        })
+        d = (today - timedelta(days=days - i - 1)).isoformat()
+        history.append({"date": d, "energy": round(energy_by_day.get(d, 0.0), 3)})
+
+    print("✅ Computed daily energy history:", history)
     return {"history": history}
+
+
 
 if __name__ == "__main__":
     import uvicorn
