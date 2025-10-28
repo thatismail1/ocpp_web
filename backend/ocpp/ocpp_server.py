@@ -778,41 +778,15 @@ class ChargerStatusManager:
         logging.info(f"[STATUS] ✅ Status updated for {charger_id}: {status}")
 
     def append_meter_log(self, meter_data):
-        """Append meter reading to meter_data_log.json."""
+        """Append meter reading to meter_data_log.json safely without wiping history."""
         try:
-            # Load existing logs
-            logs = []
-            if os.path.exists(self.meter_log_file):
-                try:
-                    with open(self.meter_log_file, 'r', encoding='utf-8') as f:
-                        content = f.read().strip()
-                        if content:
-                            logs = json.loads(content)
-                except json.JSONDecodeError:
-                    logging.warning("[METER_LOG] Corrupted log file, starting fresh")
-                    logs = []
-
-            # Append new log
-            logs.append(meter_data)
-
-            # Keep only last 500 entries
-            if len(logs) > 500:
-                logs = logs[-500:]
-
-            # Save with atomic write
-            tmp_path = self.meter_log_file.with_suffix(".tmp")
-            with open(tmp_path, 'w', encoding='utf-8') as f:
-                json.dump(logs, f, indent=2, ensure_ascii=False)
-                f.flush()
-                os.fsync(f.fileno())
-            
-            if os.path.exists(self.meter_log_file):
-                os.remove(self.meter_log_file)
-            os.rename(tmp_path, self.meter_log_file)
-
-            logging.info(f"[METER_LOG] Appended reading (total: {len(logs)})")
+            # ✅ Append each record as a line (no rewrites)
+            with open(self.meter_log_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(meter_data, ensure_ascii=False) + "\n")
+            logging.info(f"[METER_LOG] ✅ Appended 1 new line to {self.meter_log_file}")
         except Exception as e:
-            logging.error(f"[METER_LOG] Error appending: {e}")
+            logging.error(f"[METER_LOG] ❌ Error appending meter data: {e}")
+
 
     def update_uptime(self, charger_id):
         """Update uptime in hours since first seen."""

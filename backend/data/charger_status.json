@@ -3,9 +3,9 @@
     "name": "SCHNEIDER/EVlinkProAC",
     "brand": "SCHNEIDER",
     "model": "Unknown",
-    "status": "SuspendedEV",
-    "last_heartbeat": "2025-10-27T11:09:56.791465+00:00",
-    "total_energy_delivered": 0,
+    "status": "Available",
+    "last_heartbeat": "2025-10-28T13:49:19.707078+00:00",
+    "total_energy_delivered": 88.605,
     "uptime_hours": 0,
     "connector_id": 1
   },
@@ -14,8 +14,8 @@
     "brand": "Unknown",
     "model": "Unknown",
     "status": "Available",
-    "last_heartbeat": "2025-10-27T11:09:51.855360+00:00",
-    "total_energy_delivered": 0,
+    "last_heartbeat": "2025-10-28T13:49:17.293749+00:00",
+    "total_energy_delivered": 0.0,
     "uptime_hours": 0,
     "connector_id": 1
   },
@@ -23,9 +23,9 @@
     "name": "LIVOLTEK",
     "brand": "LIVOLTEK",
     "model": "LIVOLTEK",
-    "status": "Charging",
-    "last_heartbeat": "2025-10-27T11:09:58.838701+00:00",
-    "total_energy_delivered": 0,
+    "status": "Available",
+    "last_heartbeat": "2025-10-28T13:49:23.201540+00:00",
+    "total_energy_delivered": 21.0,
     "uptime_hours": 0,
     "connector_id": 1
   }
