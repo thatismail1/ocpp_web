@@ -1,3 +1,5 @@
+
+
 import asyncio
 import logging
 from datetime import datetime
@@ -710,13 +712,17 @@ class ChargerStatusManager:
                 "last_heartbeat": datetime.now(timezone.utc).isoformat(),
                 "total_energy_delivered": 0,
                 "uptime_hours": 0,
-                "connector_id": 1
+                "connector_id": 1,
+                "last_meter_reading": 0
             }
             logging.info(f"[STATUS] Created new charger entry for {charger_id}")
         else:
             self.chargers[charger_id]["brand"] = brand
             self.chargers[charger_id]["model"] = model
             self.chargers[charger_id]["last_heartbeat"] = datetime.now(timezone.utc).isoformat()
+            # Initialize last_meter_reading if missing
+            if "last_meter_reading" not in self.chargers[charger_id]:
+                self.chargers[charger_id]["last_meter_reading"] = 0
             logging.info(f"[STATUS] Updated existing charger {charger_id}")
 
         self.save_charger_status()
@@ -765,7 +771,8 @@ class ChargerStatusManager:
                 "last_heartbeat": datetime.now(timezone.utc).isoformat(),
                 "total_energy_delivered": 0,
                 "uptime_hours": 0,
-                "connector_id": connector_id or 1
+                "connector_id": connector_id or 1,
+                "last_meter_reading": 0
             }
             logging.info(f"[STATUS] Created new entry for {charger_id}")
         else:
@@ -773,17 +780,41 @@ class ChargerStatusManager:
             self.chargers[charger_id]["last_heartbeat"] = datetime.now(timezone.utc).isoformat()
             if connector_id is not None:
                 self.chargers[charger_id]["connector_id"] = connector_id
+            # Initialize last_meter_reading if missing
+            if "last_meter_reading" not in self.chargers[charger_id]:
+                self.chargers[charger_id]["last_meter_reading"] = 0
 
         self.save_charger_status()
         logging.info(f"[STATUS] ✅ Status updated for {charger_id}: {status}")
 
     def append_meter_log(self, meter_data):
-        """Append meter reading to meter_data_log.json safely without wiping history."""
+        """Append meter reading to meter_data_log.json as a JSON array - never resets, only appends."""
         try:
-            # ✅ Append each record as a line (no rewrites)
-            with open(self.meter_log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps(meter_data, ensure_ascii=False) + "\n")
-            logging.info(f"[METER_LOG] ✅ Appended 1 new line to {self.meter_log_file}")
+            # Read existing data
+            existing_data = []
+            if self.meter_log_file.exists():
+                try:
+                    with open(self.meter_log_file, "r", encoding="utf-8") as f:
+                        content = f.read().strip()
+                        if content:
+                            existing_data = json.loads(content)
+                            if not isinstance(existing_data, list):
+                                existing_data = []
+                except json.JSONDecodeError:
+                    logging.warning(f"[METER_LOG] Could not parse existing data, starting fresh")
+                    existing_data = []
+                except Exception as e:
+                    logging.error(f"[METER_LOG] Error reading existing log: {e}")
+                    existing_data = []
+            
+            # Append new data
+            existing_data.append(meter_data)
+            
+            # Write back the entire array
+            with open(self.meter_log_file, "w", encoding="utf-8") as f:
+                json.dump(existing_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[METER_LOG] ✅ Appended meter data to {self.meter_log_file} (Total records: {len(existing_data)})")
         except Exception as e:
             logging.error(f"[METER_LOG] ❌ Error appending meter data: {e}")
 
@@ -804,7 +835,10 @@ class ChargerStatusManager:
         self.save_charger_status()  
 
     def add_delivered_energy(self, charger_id, delivered_energy_kwh):
-        """Increment total energy delivered for a charger."""
+        """
+        Track cumulative meter readings and calculate energy deltas.
+        Only increments total_energy_delivered by the actual delta (not the full meter value).
+        """
         if charger_id not in self.chargers:
             # If charger not yet tracked, initialize it
             self.chargers[charger_id] = {
@@ -815,12 +849,29 @@ class ChargerStatusManager:
                 "last_heartbeat": datetime.now(timezone.utc).isoformat(),
                 "total_energy_delivered": 0,
                 "uptime_hours": 0,
-                "connector_id": 1
+                "connector_id": 1,
+                "last_meter_reading": 0  # Track last meter reading
             }
-        prev = self.chargers[charger_id].get("total_energy_delivered", 0)
-        self.chargers[charger_id]["total_energy_delivered"] = round(prev + delivered_energy_kwh, 3)
-        self.save_charger_status()
-        logging.info(f"[STATUS] Updated total_energy_delivered for {charger_id}: +{delivered_energy_kwh:.3f} kWh")
+        
+        # Get the last meter reading for this charger
+        last_reading = self.chargers[charger_id].get("last_meter_reading", 0)
+        
+        # Calculate the delta (energy consumed since last reading)
+        # Only add positive deltas to avoid issues with meter resets
+        delta = max(0, delivered_energy_kwh - last_reading)
+        
+        # Update last meter reading
+        self.chargers[charger_id]["last_meter_reading"] = delivered_energy_kwh
+        
+        # Only update total if there's a meaningful delta (> 0.001 kWh to avoid noise)
+        if delta > 0.001:
+            prev_total = self.chargers[charger_id].get("total_energy_delivered", 0)
+            self.chargers[charger_id]["total_energy_delivered"] = round(prev_total + delta, 3)
+            self.save_charger_status()
+            logging.info(f"[STATUS] Updated total_energy_delivered for {charger_id}: +{delta:.3f} kWh (Total: {self.chargers[charger_id]['total_energy_delivered']:.3f} kWh)")
+        else:
+            # Just update the last reading without saving to reduce I/O
+            logging.debug(f"[STATUS] No significant delta for {charger_id} (delta={delta:.6f} kWh)")
     
 
 class CentralSystem:
@@ -883,7 +934,8 @@ class CentralSystem:
                         "last_heartbeat": datetime.now(timezone.utc).isoformat(),
                         "total_energy_delivered": 0,
                         "uptime_hours": 0,
-                        "connector_id": 1
+                        "connector_id": 1,
+                        "last_meter_reading": 0
                     }
                     self.charger_status_manager.save_charger_status()
 

@@ -137,9 +137,9 @@ const Dashboard = () => {
                 <Line
                   type="monotone"
                   dataKey="energy"
-                  stroke="#22d3ee"
+                  stroke="#10B981"
                   strokeWidth={3}
-                  dot={{ fill: '#22d3ee' }}
+                  dot={{ fill: '#10B981' }}
                   isAnimationActive
                 />
               </LineChart>
