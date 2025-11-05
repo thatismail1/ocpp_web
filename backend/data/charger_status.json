@@ -4,11 +4,11 @@
     "brand": "SCHNEIDER",
     "model": "Unknown",
     "status": "Available",
-    "last_heartbeat": "2025-10-30T18:49:04.050536+00:00",
-    "total_energy_delivered": 169.544,
-    "uptime_hours": 22.6,
+    "last_heartbeat": "2025-11-05T05:59:05.636536+00:00",
+    "total_energy_delivered": 309.248,
+    "uptime_hours": 145.94,
     "connector_id": 1,
-    "last_meter_reading": 963.021,
+    "last_meter_reading": 1102.725,
     "boot_time": "2025-10-29T12:36:23.943138+00:00"
   },
   "BEDAS01": {
@@ -16,22 +16,22 @@
     "brand": "Unknown",
     "model": "Unknown",
     "status": "Available",
-    "last_heartbeat": "2025-10-30T18:48:44.493893+00:00",
+    "last_heartbeat": "2025-11-05T05:58:54.840663+00:00",
     "total_energy_delivered": 0.0,
     "uptime_hours": 0,
-    "connector_id": 1,
+    "connector_id": 2,
     "last_meter_reading": 0
   },
   "LIVOLTEK": {
     "name": "LIVOLTEK",
     "brand": "LIVOLTEK",
     "model": "LIVOLTEK",
-    "status": "Available",
-    "last_heartbeat": "2025-10-30T18:48:37.013550+00:00",
-    "total_energy_delivered": 23.0,
-    "uptime_hours": 4.77,
+    "status": "Charging",
+    "last_heartbeat": "2025-11-05T05:58:38.949618+00:00",
+    "total_energy_delivered": 48.0,
+    "uptime_hours": 140.9,
     "connector_id": 1,
-    "last_meter_reading": 20.0,
+    "last_meter_reading": 10.0,
     "boot_time": "2025-10-30T09:05:41.180439+00:00"
   }
 }

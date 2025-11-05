@@ -476,14 +476,19 @@ async def get_transactions(username: str = Depends(verify_token)):
     return {"transactions": transactions}
 
 @app.get("/api/logs")
-async def get_logs(username: str = Depends(verify_token), charger: Optional[str] = None, limit: int = 50):
+async def get_logs(
+    username: str = Depends(verify_token),
+    charger: Optional[str] = None,
+    limit: Optional[int] = None,
+):
     logs = load_json_file(METER_DATA_LOG_JSON, [])
-    
     if charger:
         logs = [log for log in logs if log.get('chargerName') == charger]
-    
-    return {"logs": logs[:limit]}
 
+    if limit is not None and limit >= 0:
+        logs = logs[:limit] if limit > 0 else []
+
+    return {"logs": logs}
 @app.get("/api/usage/history")
 async def get_usage_history(days: int = 7):
     """
